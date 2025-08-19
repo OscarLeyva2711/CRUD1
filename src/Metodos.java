@@ -8,7 +8,7 @@ public class Metodos {
     public Metodos(Connection con) {
         this.con = con;
     }
-
+    // ========== PERSONAS ==========
     public void agregarPersona(String nombre, String direccion) throws SQLException {
         String sql = "INSERT INTO Personas (nombre, direccion) VALUES (?, ?)";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
