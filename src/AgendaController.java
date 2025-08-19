@@ -33,11 +33,11 @@ public class AgendaController implements Initializable {
     // Lista observable para el TableView
     private ObservableList<ContactoCompleto> listaContactos = FXCollections.observableArrayList();
 
-    // Conexión a la base de datos
+    // Conexion a la base de datos
     private Connection conexion;
     private Metodos metodos;
 
-    // Datos de conexión
+    // Datos de conexion
     private static final String URL = "jdbc:mariadb://localhost:3306/agenda";
     private static final String USER = "usuario1";
     private static final String PASSWORD = "superpassword";
@@ -64,7 +64,7 @@ public class AgendaController implements Initializable {
         colTelefono.setCellValueFactory(cellData -> cellData.getValue().telefonoProperty());
         colDireccion.setCellValueFactory(cellData -> cellData.getValue().direccionProperty());
 
-        // Ajustar el ancho de las columnas
+
         colId.setPrefWidth(50);
         colNombre.setPrefWidth(150);
         colTelefono.setPrefWidth(120);
@@ -113,9 +113,9 @@ public class AgendaController implements Initializable {
             metodos.agregarPersona(nombre, direccion);
             mostrarMensaje("Contacto agregado exitosamente: " + nombre);
 
-            // Si hay teléfono, agregarlo también
+            // Si hay telefono, se agrega también
             if (!telefono.isEmpty()) {
-                // Obtener el ID de la persona recién creada
+                // Obtener el ID de la persona
                 List<Persona> personas = metodos.listarPersonas();
                 int personaId = personas.get(personas.size() - 1).getId(); // El último agregado
                 metodos.agregarTelefono(personaId, telefono);
@@ -148,18 +148,18 @@ public class AgendaController implements Initializable {
         }
 
         try {
-            // Actualizar datos de la persona (nombre y dirección)
+            // Actualizar datos de la persona
             metodos.editarPersona(contactoSeleccionado.getId(), nuevoNombre, nuevaDireccion);
 
-            // Si hay teléfono y es diferente al actual, actualizarlo también
+            // Si hay telefono y es diferente al actual, se actualiza
             if (!nuevoTelefono.isEmpty() && !nuevoTelefono.equals(contactoSeleccionado.getTelefono())) {
-                // Buscar el ID del teléfono para actualizarlo
+                // Buscar el ID del telefono para actualizarlo
                 List<Telefono> telefonos = metodos.listarTelefonosDePersona(contactoSeleccionado.getId());
                 if (!telefonos.isEmpty()) {
-                    // Si ya tiene teléfono, editar el primero encontrado
+                    // Si ya tiene telefono, editar el primero encontrado
                     metodos.editarTelefono(telefonos.get(0).getId(), nuevoTelefono);
                 } else {
-                    // Si no tenía teléfono, agregar uno nuevo
+                    // Si no tenía telefono, agregar uno nuevo
                     metodos.agregarTelefono(contactoSeleccionado.getId(), nuevoTelefono);
                 }
             }
@@ -210,7 +210,7 @@ public class AgendaController implements Initializable {
             return;
         }
 
-        // Confirmar eliminación
+        // Confirmar eliminacion
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Confirmar eliminacion");
         alert.setHeaderText("Esta seguro de eliminar este contacto?");
@@ -238,11 +238,11 @@ public class AgendaController implements Initializable {
             List<Persona> personas = metodos.listarPersonas();
 
             for (Persona persona : personas) {
-                // Obtener teléfonos de la persona
+                // Obtener telefonos de la persona
                 List<Telefono> telefonos = metodos.listarTelefonosDePersona(persona.getId());
 
                 if (telefonos.isEmpty()) {
-                    // Si no tiene teléfonos, mostrar "Sin teléfono"
+                    // Si no tiene telefonos, mostrar que no tiene un telefono
                     listaContactos.add(new ContactoCompleto(
                             persona.getId(),
                             persona.getNombre(),
@@ -250,7 +250,7 @@ public class AgendaController implements Initializable {
                             persona.getDireccion()
                     ));
                 } else {
-                    // Si tiene teléfonos, crear una fila por cada teléfono
+                    // Si tiene telefonos, creamos una fila por cada teléfono
                     for (Telefono telefono : telefonos) {
                         listaContactos.add(new ContactoCompleto(
                                 persona.getId(),
@@ -287,7 +287,7 @@ public class AgendaController implements Initializable {
         alert.showAndWait();
     }
 
-    // Método para cerrar la conexión (llamado desde el main)
+    // Metodo para cerrar la conexion
     public void cerrarConexion() {
         if (conexion != null) {
             try {
@@ -299,7 +299,7 @@ public class AgendaController implements Initializable {
         }
     }
 
-    // Clase interna para representar un contacto completo en el TableView
+    // Clase interna para mostrar un contacto completo en el TableView
     public static class ContactoCompleto {
         private final SimpleIntegerProperty id;
         private final SimpleStringProperty nombre;
