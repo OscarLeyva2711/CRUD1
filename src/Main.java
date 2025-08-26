@@ -24,7 +24,7 @@ public class Main extends Application {
             primaryStage.setScene(scene);
             primaryStage.setResizable(false);
 
-            // Configurar evento de cierre para cerrar la conexión de BD
+            // Configurar evento de cierre para cerrar la conexion de BD
             primaryStage.setOnCloseRequest(e -> {
                 if (controller != null) {
                     controller.cerrarConexion();
