@@ -1,25 +1,21 @@
 public class Direccion {
     private int id;
     private int personaId;
-    private String direccion;
+    private String descripcion;
 
-    public Direccion(int id, int personaId, String direccion) {
+    public Direccion(int id, int personaId, String descripcion) {
         this.id = id;
         this.personaId = personaId;
-        this.direccion = direccion;
+        this.descripcion = descripcion;
     }
 
-    // Getters y setters
     public int getId() { return id; }
     public int getPersonaId() { return personaId; }
-    public String getDireccion() { return direccion; }
+    public String getDescripcion() { return descripcion; }
 
     public void setId(int id) { this.id = id; }
     public void setPersonaId(int personaId) { this.personaId = personaId; }
-    public void setDireccion(String direccion) { this.direccion = direccion; }
+    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
 
-    @Override
-    public String toString() {
-        return "ID: " + id + ", Direccion: " + direccion + " (PersonaID: " + personaId + ")";
-    }
+
 }

@@ -3,470 +3,203 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 
-import java.net.URL;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.util.List;
-import java.util.ResourceBundle;
 
-public class AgendaController implements Initializable {
+public class AgendaController {
+    @FXML private TextField txtNombre, txtTelefono, txtDireccion;
+    @FXML private TableView<ContactoTabla> tableView;
+    @FXML private TableColumn<ContactoTabla, Integer> colId;
+    @FXML private TableColumn<ContactoTabla, String> colNombre;
+    @FXML private TableColumn<ContactoTabla, String> colTelefono;
+    @FXML private TableColumn<ContactoTabla, String> colDireccion;
 
-    @FXML private TextField txtNombre;
-    @FXML private TextField txtDireccion;
-    @FXML private TextField txtTelefono;
-    @FXML private Button btnAgregar;
-    @FXML private Button btnEditar;
-    @FXML private Button btnAgregarTelefono;
-    @FXML private Button btnAgregarDireccion;
-    @FXML private Button btnEliminar;
+    private AgendaService service = new AgendaService();
+    private ObservableList<ContactoTabla> contactosTabla = FXCollections.observableArrayList();
 
-    // TableView y sus columnas
-    @FXML private TableView<ContactoCompleto> tableView;
-    @FXML private TableColumn<ContactoCompleto, Integer> colId;
-    @FXML private TableColumn<ContactoCompleto, String> colNombre;
-    @FXML private TableColumn<ContactoCompleto, String> colTelefono;
-    @FXML private TableColumn<ContactoCompleto, String> colDireccion;
+    @FXML
+    public void initialize() {
+        colId.setCellValueFactory(cell -> cell.getValue().idProperty().asObject());
+        colNombre.setCellValueFactory(cell -> cell.getValue().nombreProperty());
+        colTelefono.setCellValueFactory(cell -> cell.getValue().telefonoProperty());
+        colDireccion.setCellValueFactory(cell -> cell.getValue().direccionProperty());
 
-    // Lista observable para el TableView
-    private ObservableList<ContactoCompleto> listaContactos = FXCollections.observableArrayList();
+        tableView.setItems(contactosTabla);
+        cargarTabla();
 
-    // Conexion a la base de datos
-    private Connection conexion;
-    private Metodos metodos;
-
-    // Datos de conexion (ajusta según tu configuración)
-    private static final String URL = "jdbc:mariadb://localhost:3306/agenda";
-    private static final String USER = "usuario1";
-    private static final String PASSWORD = "superpassword";
-
-    @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        // Configurar las columnas del TableView
-        configurarTabla();
-
-        // Inicializar conexión cuando se carga la interfaz
-        inicializarConexion();
-
-        // Configurar evento de selección en la tabla
-        configurarSeleccionTabla();
-
-        // Cargar datos iniciales
-        cargarContactosEnTabla();
+        // Listener para llenar TextField al seleccionar un contacto
+        tableView.getSelectionModel().selectedItemProperty().addListener(
+                (observable, oldValue, newValue) -> {
+                    if (newValue != null) {
+                        txtNombre.setText(newValue.getNombre());
+                        txtTelefono.setText(newValue.getTelefono().equals("Sin teléfono") ? "" : newValue.getTelefono());
+                        txtDireccion.setText(newValue.getDireccion().equals("Sin dirección") ? "" : newValue.getDireccion());
+                    } else {
+                        txtNombre.clear();
+                        txtTelefono.clear();
+                        txtDireccion.clear();
+                    }
+                }
+        );
     }
 
-    private void configurarTabla() {
-        // Configurar las columnas para que tomen los datos correctos
-        colId.setCellValueFactory(cellData -> cellData.getValue().idProperty().asObject());
-        colNombre.setCellValueFactory(cellData -> cellData.getValue().nombreProperty());
-        colTelefono.setCellValueFactory(cellData -> cellData.getValue().telefonoProperty());
-        colDireccion.setCellValueFactory(cellData -> cellData.getValue().direccionProperty());
+    private void cargarTabla() {
+        contactosTabla.clear();
+        List<Persona> personas = service.listarPersonas();
+        for (Persona p : personas) {
+            // Inicializa listas si son null
+            if (p.getTelefonos() == null) p.setTelefonos(FXCollections.observableArrayList());
+            if (p.getDirecciones() == null) p.setDirecciones(FXCollections.observableArrayList());
 
-        colId.setPrefWidth(50);
-        colNombre.setPrefWidth(150);
-        colTelefono.setPrefWidth(120);
-        colDireccion.setPrefWidth(200);
+            p.getTelefonos().addAll(service.listarTelefonos(p.getId()));
+            p.getDirecciones().addAll(service.listarDirecciones(p.getId()));
 
-        // Asignar la lista observable al TableView
-        tableView.setItems(listaContactos);
-    }
+            String tel = p.getTelefonosTexto().isEmpty() ? "Sin teléfono" : p.getTelefonosTexto();
+            String dir = p.getDireccionesTexto().isEmpty() ? "Sin dirección" : p.getDireccionesTexto();
 
-    private void configurarSeleccionTabla() {
-        // Permitir que al seleccionar una fila, se llenen los campos de texto
-        tableView.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
-            if (newSelection != null) {
-                // Llenar los campos con los datos de la fila seleccionada
-                txtNombre.setText(newSelection.getNombre());
-                txtDireccion.setText(newSelection.getDireccion().equals("Sin direccion") ? "" : newSelection.getDireccion());
-                txtTelefono.setText(newSelection.getTelefono().equals("Sin telefono") ? "" : newSelection.getTelefono());
-            }
-        });
-    }
-
-    private void inicializarConexion() {
-        try {
-            Class.forName("org.mariadb.jdbc.Driver");
-            conexion = DriverManager.getConnection(URL, USER, PASSWORD);
-            metodos = new Metodos(conexion);
-            mostrarMensaje("Conexion a la base de datos establecida exitosamente.");
-        } catch (Exception e) {
-            mostrarError("Error al conectar con la base de datos: " + e.getMessage());
+            contactosTabla.add(new ContactoTabla(p.getId(), p.getNombre(), tel, dir));
         }
     }
 
     @FXML
     private void agregarContacto() {
         String nombre = txtNombre.getText().trim();
-        String direccion = txtDireccion.getText().trim();
+        if(nombre.isEmpty()) return;
+
+        Persona p = service.agregarPersona(nombre);
+        if(p == null) return;
+
         String telefono = txtTelefono.getText().trim();
+        String direccion = txtDireccion.getText().trim();
 
-        if (nombre.isEmpty()) {
-            mostrarError("El nombre es obligatorio.");
-            txtNombre.requestFocus();
-            return;
-        }
+        if(!telefono.isEmpty()) service.agregarTelefono(new Telefono(0, p.getId(), telefono));
+        if(!direccion.isEmpty()) service.agregarDireccion(new Direccion(0, p.getId(), direccion));
 
-        try {
-            // Agregar la persona y obtener su ID
-            int personaId = metodos.agregarPersona(nombre);
-            mostrarMensaje("Contacto agregado exitosamente: " + nombre);
-
-            // Si hay dirección, agregarla
-            if (!direccion.isEmpty()) {
-                metodos.agregarDireccion(personaId, direccion);
-                mostrarMensaje("Direccion agregada al contacto.");
-            }
-
-            // Si hay teléfono, agregarlo
-            if (!telefono.isEmpty()) {
-                metodos.agregarTelefono(personaId, telefono);
-                mostrarMensaje("Telefono agregado al contacto.");
-            }
-
-            limpiarCampos();
-            cargarContactosEnTabla();
-
-        } catch (SQLException e) {
-            mostrarError("Error al agregar contacto: " + e.getMessage());
-        }
+        limpiarCampos();
+        cargarTabla();
     }
 
     @FXML
     private void editarContacto() {
-        ContactoCompleto contactoSeleccionado = tableView.getSelectionModel().getSelectedItem();
+        ContactoTabla selected = tableView.getSelectionModel().getSelectedItem();
+        if (selected == null) return;
+
         String nuevoNombre = txtNombre.getText().trim();
-        String nuevaDireccion = txtDireccion.getText().trim();
         String nuevoTelefono = txtTelefono.getText().trim();
+        String nuevaDireccion = txtDireccion.getText().trim();
 
-        if (contactoSeleccionado == null) {
-            mostrarError("Seleccione un contacto de la tabla para editar.");
-            return;
+        // 1️⃣ Editar nombre
+        if (!nuevoNombre.isEmpty() && !nuevoNombre.equals(selected.getNombre())) {
+            service.editarPersona(selected.getId(), nuevoNombre);
         }
 
-        if (nuevoNombre.isEmpty()) {
-            mostrarError("El nombre es obligatorio.");
-            txtNombre.requestFocus();
-            return;
-        }
-
-        try {
-            // Actualizar nombre de la persona
-            metodos.editarPersona(contactoSeleccionado.getId(), nuevoNombre);
-
-            // Manejar direccion
-            if (!nuevaDireccion.isEmpty()) {
-                List<Direccion> direcciones = metodos.listarDireccionesDePersona(contactoSeleccionado.getId());
-                if (!direcciones.isEmpty() && !nuevaDireccion.equals(contactoSeleccionado.getDireccion())) {
-                    // Editar la primera direccion si es diferente
-                    metodos.editarDireccion(direcciones.get(0).getId(), nuevaDireccion);
-                } else if (direcciones.isEmpty()) {
-                    // Agregar nueva direccion si no tenía
-                    metodos.agregarDireccion(contactoSeleccionado.getId(), nuevaDireccion);
+        // Editar telefono
+        List<Telefono> telefonos = service.listarTelefonos(selected.getId());
+        if (!nuevoTelefono.isEmpty()) {
+            if (!telefonos.isEmpty()) {
+                if (!nuevoTelefono.equals(telefonos.get(0).getNumero())) {
+                    service.editarTelefono(telefonos.get(0).getId(), nuevoTelefono);
                 }
+            } else {
+                service.agregarTelefono(new Telefono(0, selected.getId(), nuevoTelefono));
             }
+        }
 
-            // Manejar telefono
-            if (!nuevoTelefono.isEmpty()) {
-                List<Telefono> telefonos = metodos.listarTelefonosDePersona(contactoSeleccionado.getId());
-                if (!telefonos.isEmpty() && !nuevoTelefono.equals(contactoSeleccionado.getTelefono())) {
-                    // Editar el primer telefono si es diferente
-                    metodos.editarTelefono(telefonos.get(0).getId(), nuevoTelefono);
-                } else if (telefonos.isEmpty()) {
-                    // Agregar nuevo telefono si no tenía
-                    metodos.agregarTelefono(contactoSeleccionado.getId(), nuevoTelefono);
+        // Editar direccion
+        List<Direccion> direcciones = service.listarDirecciones(selected.getId());
+        if (!nuevaDireccion.isEmpty()) {
+            if (!direcciones.isEmpty()) {
+                if (!nuevaDireccion.equals(direcciones.get(0).getDescripcion())) {
+                    service.editarDireccion(direcciones.get(0).getId(), nuevaDireccion);
                 }
+            } else {
+                service.agregarDireccion(new Direccion(0, selected.getId(), nuevaDireccion));
             }
-
-            mostrarMensaje("Contacto editado exitosamente.");
-            limpiarCampos();
-            cargarContactosEnTabla();
-
-        } catch (SQLException e) {
-            mostrarError("Error al editar contacto: " + e.getMessage());
-        }
-    }
-
-    @FXML
-    private void agregarTelefono() {
-        ContactoCompleto contactoSeleccionado = tableView.getSelectionModel().getSelectedItem();
-        String telefono = txtTelefono.getText().trim();
-
-        if (contactoSeleccionado == null) {
-            mostrarError("Seleccione un contacto de la tabla para agregar telefono.");
-            return;
         }
 
-        if (telefono.isEmpty()) {
-            mostrarError("Ingrese el número de telefono.");
-            txtTelefono.requestFocus();
-            return;
-        }
-
-        try {
-            metodos.agregarTelefono(contactoSeleccionado.getId(), telefono);
-            mostrarMensaje("Telefono agregado exitosamente.");
-
-            txtTelefono.clear(); // Solo limpiar el campo de telefono
-            cargarContactosEnTabla();
-
-        } catch (SQLException e) {
-            mostrarError("Error al agregar telefono: " + e.getMessage());
-        }
-    }
-
-    @FXML
-    private void agregarDireccion() {
-        ContactoCompleto contactoSeleccionado = tableView.getSelectionModel().getSelectedItem();
-        String direccion = txtDireccion.getText().trim();
-
-        if (contactoSeleccionado == null) {
-            mostrarError("Seleccione un contacto de la tabla para agregar direccion.");
-            return;
-        }
-
-        if (direccion.isEmpty()) {
-            mostrarError("Ingrese la direccion.");
-            txtDireccion.requestFocus();
-            return;
-        }
-
-        try {
-            metodos.agregarDireccion(contactoSeleccionado.getId(), direccion);
-            mostrarMensaje("Direccion agregada exitosamente.");
-
-            txtDireccion.clear(); // Solo limpiar el campo de direccion
-            cargarContactosEnTabla();
-
-        } catch (SQLException e) {
-            mostrarError("Error al agregar direccion: " + e.getMessage());
-        }
+        limpiarCampos();
+        cargarTabla();
     }
 
     @FXML
     private void eliminarContacto() {
-        ContactoCompleto contactoSeleccionado = tableView.getSelectionModel().getSelectedItem();
+        ContactoTabla selected = tableView.getSelectionModel().getSelectedItem();
+        if(selected == null) return;
 
-        if (contactoSeleccionado == null) {
-            mostrarError("Seleccione un contacto de la tabla para eliminar.");
-            return;
-        }
+        service.eliminarPersona(selected.getId());
+        limpiarCampos();
+        cargarTabla();
+    }
 
-        // Confirmar eliminacion
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Confirmar eliminacion");
-        alert.setHeaderText("¿Está seguro de eliminar este contacto?");
-        alert.setContentText("Se eliminara: " + contactoSeleccionado.getNombre() +
-                "\n\nEsta acción eliminará toda la informacion asociada (direcciones y telefonos).");
+    @FXML
+    private void agregarTelefono() {
+        ContactoTabla selected = tableView.getSelectionModel().getSelectedItem();
+        if(selected == null || txtTelefono.getText().trim().isEmpty()) return;
 
-        alert.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
-                try {
-                    metodos.eliminarPersona(contactoSeleccionado.getId());
-                    mostrarMensaje("Contacto eliminado.");
+        service.agregarTelefono(new Telefono(0, selected.getId(), txtTelefono.getText().trim()));
+        txtTelefono.clear();
+        cargarTabla();
+    }
 
-                    limpiarCampos();
-                    cargarContactosEnTabla();
+    @FXML
+    private void agregarDireccion() {
+        ContactoTabla selected = tableView.getSelectionModel().getSelectedItem();
+        if(selected == null || txtDireccion.getText().trim().isEmpty()) return;
 
-                } catch (SQLException e) {
-                    mostrarError("Error al eliminar contacto: " + e.getMessage());
-                }
-            }
-        });
+        service.agregarDireccion(new Direccion(0, selected.getId(), txtDireccion.getText().trim()));
+        txtDireccion.clear();
+        cargarTabla();
     }
 
     @FXML
     private void eliminarTelefono() {
-        ContactoCompleto contactoSeleccionado = tableView.getSelectionModel().getSelectedItem();
+        ContactoTabla selected = tableView.getSelectionModel().getSelectedItem();
+        if(selected == null) return;
 
-        if (contactoSeleccionado == null) {
-            mostrarError("Seleccione un contacto de la tabla para eliminar telefono.");
-            return;
-        }
-
-        if (contactoSeleccionado.getTelefono().equals("Sin telefono")) {
-            mostrarError("Este contacto no tiene telefonos para eliminar.");
-            return;
-        }
-
-        try {
-            List<Telefono> telefonos = metodos.listarTelefonosDePersona(contactoSeleccionado.getId());
-            if (!telefonos.isEmpty()) {
-                // Confirmar eliminacion
-                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-                alert.setTitle("Confirmar eliminacion");
-                alert.setHeaderText("¿Eliminar telefono?");
-                alert.setContentText("Se eliminara: " + telefonos.get(0).getTelefono());
-
-                alert.showAndWait().ifPresent(response -> {
-                    if (response == ButtonType.OK) {
-                        try {
-                            metodos.eliminarTelefono(telefonos.get(0).getId());
-                            mostrarMensaje("Teléfono eliminado.");
-                            cargarContactosEnTabla();
-                        } catch (SQLException e) {
-                            mostrarError("Error al eliminar telefono: " + e.getMessage());
-                        }
-                    }
-                });
-            }
-        } catch (SQLException e) {
-            mostrarError("Error al eliminar telefono: " + e.getMessage());
-        }
+        List<Telefono> telefonos = service.listarTelefonos(selected.getId());
+        if(!telefonos.isEmpty()) service.eliminarTelefono(telefonos.get(0).getId());
+        cargarTabla();
     }
 
     @FXML
     private void eliminarDireccion() {
-        ContactoCompleto contactoSeleccionado = tableView.getSelectionModel().getSelectedItem();
+        ContactoTabla selected = tableView.getSelectionModel().getSelectedItem();
+        if(selected == null) return;
 
-        if (contactoSeleccionado == null) {
-            mostrarError("Seleccione un contacto de la tabla para eliminar direccion.");
-            return;
-        }
-
-        if (contactoSeleccionado.getDireccion().equals("Sin dirección")) {
-            mostrarError("Este contacto no tiene direcciones para eliminar.");
-            return;
-        }
-
-        try {
-            List<Direccion> direcciones = metodos.listarDireccionesDePersona(contactoSeleccionado.getId());
-            if (!direcciones.isEmpty()) {
-                // Confirmar eliminacion
-                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-                alert.setTitle("Confirmar eliminacion");
-                alert.setHeaderText("¿Eliminar direccion?");
-                alert.setContentText("Se eliminara: " + direcciones.get(0).getDireccion());
-
-                alert.showAndWait().ifPresent(response -> {
-                    if (response == ButtonType.OK) {
-                        try {
-                            metodos.eliminarDireccion(direcciones.get(0).getId());
-                            mostrarMensaje("Dirección eliminada.");
-                            cargarContactosEnTabla();
-                        } catch (SQLException e) {
-                            mostrarError("Error al eliminar dirección: " + e.getMessage());
-                        }
-                    }
-                });
-            }
-        } catch (SQLException e) {
-            mostrarError("Error al eliminar dirección: " + e.getMessage());
-        }
-    }
-
-    private void cargarContactosEnTabla() {
-        try {
-            listaContactos.clear();
-            List<Persona> personas = metodos.listarPersonas();
-
-            for (Persona persona : personas) {
-                // Obtener direcciones y telefonos de la persona
-                List<Direccion> direcciones = metodos.listarDireccionesDePersona(persona.getId());
-                List<Telefono> telefonos = metodos.listarTelefonosDePersona(persona.getId());
-
-                // Crear combinaciones de direccion-telefono
-                if (direcciones.isEmpty() && telefonos.isEmpty()) {
-                    // Sin direcciones ni teléfonos
-                    listaContactos.add(new ContactoCompleto(
-                            persona.getId(),
-                            persona.getNombre(),
-                            "Sin teléfono",
-                            "Sin dirección"
-                    ));
-                } else if (direcciones.isEmpty()) {
-                    // Sin direcciones, pero con teléfonos
-                    for (Telefono telefono : telefonos) {
-                        listaContactos.add(new ContactoCompleto(
-                                persona.getId(),
-                                persona.getNombre(),
-                                telefono.getTelefono(),
-                                "Sin dirección"
-                        ));
-                    }
-                } else if (telefonos.isEmpty()) {
-                    // Sin teléfonos, pero con direcciones
-                    for (Direccion direccion : direcciones) {
-                        listaContactos.add(new ContactoCompleto(
-                                persona.getId(),
-                                persona.getNombre(),
-                                "Sin teléfono",
-                                direccion.getDireccion()
-                        ));
-                    }
-                } else {
-                    // Con direcciones y teléfonos - crear todas las combinaciones
-                    for (Direccion direccion : direcciones) {
-                        for (Telefono telefono : telefonos) {
-                            listaContactos.add(new ContactoCompleto(
-                                    persona.getId(),
-                                    persona.getNombre(),
-                                    telefono.getTelefono(),
-                                    direccion.getDireccion()
-                            ));
-                        }
-                    }
-                }
-            }
-
-        } catch (SQLException e) {
-            mostrarError("Error al cargar contactos en la tabla: " + e.getMessage());
-        }
+        List<Direccion> direcciones = service.listarDirecciones(selected.getId());
+        if(!direcciones.isEmpty()) service.eliminarDireccion(direcciones.get(0).getId());
+        cargarTabla();
     }
 
     private void limpiarCampos() {
         txtNombre.clear();
-        txtDireccion.clear();
         txtTelefono.clear();
+        txtDireccion.clear();
         tableView.getSelectionModel().clearSelection();
     }
 
-    private void mostrarMensaje(String mensaje) {
-        System.out.println("INFO: " + mensaje);
-    }
+    // Clase interna para la tabla
+    public static class ContactoTabla {
+        private SimpleIntegerProperty id;
+        private SimpleStringProperty nombre, telefono, direccion;
 
-    private void mostrarError(String error) {
-        System.err.println("ERROR: " + error);
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText("Ha ocurrido un error");
-        alert.setContentText(error);
-        alert.showAndWait();
-    }
-
-    // Metodo para cerrar la conexion
-    public void cerrarConexion() {
-        if (metodos != null) {
-            metodos.cerrarConexion();
-        }
-    }
-
-    // Clase interna para mostrar un contacto completo en el TableView
-    public static class ContactoCompleto {
-        private final SimpleIntegerProperty id;
-        private final SimpleStringProperty nombre;
-        private final SimpleStringProperty telefono;
-        private final SimpleStringProperty direccion;
-
-        public ContactoCompleto(int id, String nombre, String telefono, String direccion) {
+        public ContactoTabla(int id, String nombre, String telefono, String direccion) {
             this.id = new SimpleIntegerProperty(id);
             this.nombre = new SimpleStringProperty(nombre);
             this.telefono = new SimpleStringProperty(telefono);
             this.direccion = new SimpleStringProperty(direccion);
         }
 
-        // Getters para los valores
         public int getId() { return id.get(); }
-        public String getNombre() { return nombre.get(); }
-        public String getTelefono() { return telefono.get(); }
-        public String getDireccion() { return direccion.get(); }
-
-        // Properties para JavaFX
         public SimpleIntegerProperty idProperty() { return id; }
+        public String getNombre() { return nombre.get(); }
         public SimpleStringProperty nombreProperty() { return nombre; }
+        public String getTelefono() { return telefono.get(); }
         public SimpleStringProperty telefonoProperty() { return telefono; }
+        public String getDireccion() { return direccion.get(); }
         public SimpleStringProperty direccionProperty() { return direccion; }
     }
 }
