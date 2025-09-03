@@ -91,7 +91,7 @@ public class AgendaController {
         String nuevoTelefono = txtTelefono.getText().trim();
         String nuevaDireccion = txtDireccion.getText().trim();
 
-        // 1️⃣ Editar nombre
+        // Editar nombre
         if (!nuevoNombre.isEmpty() && !nuevoNombre.equals(selected.getNombre())) {
             service.editarPersona(selected.getId(), nuevoNombre);
         }
